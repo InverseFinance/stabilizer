@@ -17,6 +17,7 @@ contract StabilizerV2Test is Test {
     address public gov=0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
     address public user=address(0xA);
     uint minDaiPrice = 99000000;
+    uint supplyCap = 1_000_000 ether;
     StabilizerV2 public stabilizer;
     DSRStrat public dsrStrat;
     IMintable public dola = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
@@ -32,6 +33,7 @@ contract StabilizerV2Test is Test {
         dsrStrat = new DSRStrat(address(stabilizer), gov);
         vm.startPrank(gov);
         stabilizer.setStrat(IStrat(address(dsrStrat)));
+        stabilizer.setCap(supplyCap);
         dsrStrat.setMinDaiPrice(minDaiPrice);
         dola.addMinter(address(stabilizer));
         vm.stopPrank();
@@ -73,6 +75,20 @@ contract StabilizerV2Test is Test {
         assertEq(stabilizer.supply(), supplyBefore + amount, "supply did not increase by amount");
 
     }
+
+    function test_buy_fail_aboveSupplyCap() public {
+        uint amount = supplyCap + 1;
+        deal(address(underlying), user, amount);
+        vm.prank(gov);
+        stabilizer.setBuyFee(0);
+
+        vm.startPrank(user);
+        underlying.approve(address(stabilizer), amount);
+        vm.expectRevert("supply exceeded cap");
+        stabilizer.buy(amount);
+        vm.stopPrank();
+    }
+
 
     function test_buy_fail_priceBelowMinPrice() public {
         uint amount = 1 ether;

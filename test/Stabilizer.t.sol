@@ -22,6 +22,7 @@ contract StabilizerTest is Test {
     address public user=address(0xA);
     IStabilizer public stabilizer;
     uint minDaiPrice = 99000000;
+    uint supplyCap = 1_000_000 ether;
     DSRStrat public dsrStrat;
     IMintable public dola = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
     IPot public constant POT = IPot(0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7);
@@ -38,7 +39,7 @@ contract StabilizerTest is Test {
         underlying = dsrStrat.underlying();
         vm.startPrank(gov);
         stabilizer.setStrat(address(dsrStrat));
-        stabilizer.setCap(1_000_000 ether);
+        stabilizer.setCap(supplyCap);
         dsrStrat.setMinDaiPrice(minDaiPrice);
         dola.addMinter(address(stabilizer));
         vm.stopPrank();
@@ -79,6 +80,19 @@ contract StabilizerTest is Test {
         assertEq(dola.balanceOf(user), amount, "dola balance of user != amount");
         assertEq(stabilizer.supply(), supplyBefore + amount, "supply did not increase by amount");
 
+    }
+
+    function test_buy_fail_aboveSupplyCap() public {
+        uint amount = supplyCap + 1;
+        deal(address(underlying), user, amount);
+        vm.prank(gov);
+        stabilizer.setBuyFee(0);
+        
+        vm.startPrank(user);
+        underlying.approve(address(stabilizer), amount);
+        vm.expectRevert("supply exceeded cap");
+        stabilizer.buy(amount);
+        vm.stopPrank();
     }
 
     function test_buy_fail_priceBelowMinPrice() public {
@@ -191,6 +205,49 @@ contract StabilizerTest is Test {
         assertEq(stabilizer.supply(), supplyBefore, "supply did not return");   
     }
 
+    //Access control
 
+    function test_setBuyFee() external {
+        vm.expectRevert("ONLY GOV");
+        stabilizer.setBuyFee(1000);
 
+        vm.expectRevert("amount too high");
+        vm.prank(gov);
+        stabilizer.setBuyFee(1001);
+
+        vm.prank(gov);
+        stabilizer.setBuyFee(1000);
+        assertEq(stabilizer.buyFee(), 1000);
+    }
+
+    function test_setSellFee() external {
+        vm.expectRevert("ONLY GOV");
+        stabilizer.setSellFee(1000);
+
+        vm.expectRevert("amount too high");
+        vm.prank(gov);
+        stabilizer.setSellFee(1001);
+
+        vm.prank(gov);
+        stabilizer.setSellFee(1000);
+        assertEq(stabilizer.sellFee(), 1000);
+    }
+
+    function test_setCap() external {
+        vm.expectRevert("ONLY OPERATOR OR GOV");
+        stabilizer.setCap(1);
+
+        vm.prank(gov);
+        stabilizer.setCap(1);
+        assertEq(stabilizer.supplyCap(), 1);
+    }
+
+    function test_setGovernance() external {
+        vm.expectRevert("ONLY GOV");
+        stabilizer.setGovernance(address(0xdead));
+
+        vm.prank(gov);
+        stabilizer.setGovernance(address(0xdead));
+        assertEq(stabilizer.governance(), address(0xdead));
+    }
 }

@@ -45,17 +45,17 @@ contract DSRStrat {
     IChainlinkFeed public feed = IChainlinkFeed(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9);
 
     modifier onlyStabilizer {
-        require(msg.sender == stabilizer);
+        require(msg.sender == stabilizer, "ONLY STABILIZER");
         _;
     }
 
     modifier onlyGov {
-        require(msg.sender == gov);
+        require(msg.sender == gov, "ONLY GOV");
         _;
     }
 
     modifier onlyPendingGov {
-        require(msg.sender == pendingGov);
+        require(msg.sender == pendingGov, "ONLY PENDING GOV");
         _;
     }
 
@@ -99,6 +99,10 @@ contract DSRStrat {
     // Withdraw all DAI from DSR directly to treasury.
     function emergencyWithdraw() public onlyGov {
         DSR_MANAGER.exitAll(gov);
+        uint bal = underlying.balanceOf(address(this));
+        if(bal > 0){
+            underlying.transfer(gov, bal);
+        }
     }
 
     function setDaiFeed(address daiFeed) external onlyGov {

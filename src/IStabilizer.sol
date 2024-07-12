@@ -24,7 +24,7 @@ interface IStabilizer {
     function reserve() external returns(address);
     function operator() external returns(address);
     function strat() external returns(IStrat);
-    function governace() external returns(address);
+    function governance() external returns(address);
 
     //Functions
 
