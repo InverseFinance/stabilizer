@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import {StabilizerV2, IMintable, IStrat} from "src/StabilizerV2.sol";
-import {DSRStrat, IERC20} from "src/strats/DSRStrat.sol";
+import {DSRStrat, IERC20, IChainlinkFeed} from "src/strats/DSRStrat.sol";
 
 interface IPot {
     function chi() external view returns (uint);
@@ -16,6 +16,7 @@ contract StabilizerV2Test is Test {
     
     address public gov=0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
     address public user=address(0xA);
+    uint minDaiPrice = 99000000;
     StabilizerV2 public stabilizer;
     DSRStrat public dsrStrat;
     IMintable public dola = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
@@ -31,6 +32,7 @@ contract StabilizerV2Test is Test {
         dsrStrat = new DSRStrat(address(stabilizer), gov);
         vm.startPrank(gov);
         stabilizer.setStrat(IStrat(address(dsrStrat)));
+        dsrStrat.setMinDaiPrice(minDaiPrice);
         dola.addMinter(address(stabilizer));
         vm.stopPrank();
     }
@@ -70,6 +72,24 @@ contract StabilizerV2Test is Test {
         assertEq(dola.balanceOf(user), amount, "dola balance of user != amount");
         assertEq(stabilizer.supply(), supplyBefore + amount, "supply did not increase by amount");
 
+    }
+
+    function test_buy_fail_priceBelowMinPrice() public {
+        uint amount = 1 ether;
+        vm.prank(gov);
+        stabilizer.setBuyFee(0);
+        deal(address(underlying), user, amount);
+
+        vm.startPrank(user);
+        underlying.approve(address(stabilizer), amount);
+        vm.mockCall(
+            address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9), //DAI USD chainlink feed
+            abi.encodeWithSelector(IChainlinkFeed.latestAnswer.selector),
+            abi.encode(int(minDaiPrice - 1))
+        );
+        vm.expectRevert("dai depeg");
+        stabilizer.buy(amount);
+        vm.stopPrank();
     }
 
     function test_sell_noFee() public {
